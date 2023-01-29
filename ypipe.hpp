@@ -20,6 +20,7 @@ template<class T,int N>
 class ypipe_t : public ypipe_base_t<T>{
 public:
     ypipe_t(){
+        //yqueue在初始化之后，确实需要先调用push来对back_chunk 和 back_pos来进行初始化
         queue_.push();
 
         r_ = w_ = f_ = &queue_.back();
@@ -27,7 +28,7 @@ public:
     }
     
     //incomplele = true表示当前写入的是一个数据分段，并不是完整的数据
-    //主要当incomplete = false的时候，才表示写入了完成的数据,然后对f_的值进行更新.这样从w_ -> f_ 这一段之间的数据就代表一段完整的数据
+    //只有当incomplete = false的时候，才表示写入了完成的数据,然后对f_的值进行更新.这样从w_ -> f_ 这一段之间的数据就代表一段完整的数据
     inline void write(const T& value,bool incomplete){
         queue_.back() = value;
         queue_.push();//更新back_pos 和 end_pos
@@ -69,13 +70,16 @@ public:
     }
 
     //该函数的职责就是检查是否有数据可以读 并且 进行预读
+    //判断是否有数据可以读就是通过判断r_ 和 front() 来进行判断的
     bool check_read(){
-        //从[r_,&queue_.front()]  这一段的元素就是可以进行预读的元素
+        //从[&queue_.front(),r_]  这一段的元素就是可以进行预读的元素
+        //随着不断的读出(pop)数据，front最后一定等于 r_.表示暂时没有数据可以读，下面就需要进预读
         if(&queue_.front() != r_ && r_){
             return true;
         }
         //接下来进行进行预读操作
-        //要进行的预读操作其实就是将r_ 的值设置为 c_.并且一步会判断如果c_ = &queue_.front()的话，那么就代表队列中没有数据可以进行读取的，于是会将c_的值设置为NULL
+        //要进行的预读操作其实就是将r_ 的值设置为 c_.并且一步会判断如果c_ = &queue_.front()的话，那么就代表队列中没有数据可以进行读取的，于是会将c_的值设置为NULL,r 设置为front
+        //因为每一次write false的时候，会对f_进行更新,之后调用flush的话，会将 c_ 、w_ 和 f_的值都更新.这样 c_ 就不等于 front.
         r_ = c_.cas(&queue_.front(),NULL);
 
         if(r_ == &queue_.front() || !r_){
@@ -84,6 +88,7 @@ public:
         return true;
     }
 
+    //读出队列中的第一个元素
     bool read(T* value){
         if(!check_read()){
             return false;

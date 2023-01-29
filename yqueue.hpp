@@ -43,6 +43,9 @@ public:
         return back_chunk->values[back_pos];
     }
 
+    //通常情况下，end_chunk 和back_chunk都是指向同一块chunk.
+    //end_pos - back_pos = 1
+    //end_pos 驱动 back_pos更新
     inline void push(){
         back_chunk = end_chunk;
         back_pos = end_pos;
@@ -103,16 +106,16 @@ private:
     }
 
     //成员变量
-    chunk_t* begin_chunk; //指向第一个元素所在的chunk
+    chunk_t* begin_chunk; //第一个chunk
     int begin_pos;      //第一个元素在chunk中下标
 
     chunk_t* back_chunk;  //指向最后一个元素所在的chunk
-    int back_pos;         //最后一个元素在chunk中的位置
+    int back_pos;         //最后一个元素在chunk中的位置,也就是当前可以插入的位置
 
     chunk_t* end_chunk;   //指向队列中最后一个chunk
     int end_pos;
 
-    atomic_ptr_t<chunk_t> spare_chunk;
+    atomic_ptr_t<chunk_t> spare_chunk;    //在pop的过程中，对于要释放的chunk，可以先通过该变量保存一下.方便在下一个push的时候需要进行分配
 };
 
 #endif
